@@ -90,12 +90,9 @@ func (cfg *Config) doNginx() error {
 }
 
 func (cfg *Config) doEnvFile() error {
-	data := new(bytes.Buffer)
+	stackEnvData := new(bytes.Buffer)
 	for _, nginx := range cfg.appConfig.Nginx {
-		fmt.Fprintf(data, "CFG_IPV4_%s=%s\n", sanitizeHost(nginx.ExternalHost), nginx.IPv4)
-	}
-	for key, val := range cfg.appConfig.Runtime.Env {
-		fmt.Fprintf(data, "%s=%v\n", key, val)
+		fmt.Fprintf(stackEnvData, "CFG_IPV4_%s=%s\n", sanitizeHost(nginx.ExternalHost), nginx.IPv4)
 	}
 	for _, extensionName := range cfg.appConfig.Runtime.EnvExtensions {
 		ext, ok := cfg.extensions[extensionName]
@@ -103,16 +100,21 @@ func (cfg *Config) doEnvFile() error {
 			return fmt.Errorf("Failed to load env extension %s: not found", extensionName)
 		}
 		for key, val := range ext {
-			fmt.Fprintf(data, "%s=%v\n", key, val)
+			fmt.Fprintf(stackEnvData, "%s=%v\n", key, val)
 		}
 	}
-	err := os.WriteFile(
-		filepath.Join(cfg.baseDir, "stack.env"),
-		data.Bytes(),
-		0644,
-	)
+	for key, val := range cfg.appConfig.Runtime.Env {
+		fmt.Fprintf(stackEnvData, "%s=%v\n", key, val)
+	}
+
+	b := stackEnvData.Bytes()
+	err := os.WriteFile(filepath.Join(cfg.baseDir, "stack.env"), b, 0644)
 	if err != nil {
-		return fmt.Errorf("Failed to write data")
+		return fmt.Errorf("Failed to write stack.env: %w", err)
+	}
+	err = os.WriteFile(filepath.Join(cfg.baseDir, ".env"), b, 0644)
+	if err != nil {
+		return fmt.Errorf("Failed to write .env: %w", err)
 	}
 
 	return nil
