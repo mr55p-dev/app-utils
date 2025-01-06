@@ -11,8 +11,8 @@ import (
 	"strings"
 	"text/template"
 
-	"arr-setup/config"
-	"arr-setup/embed"
+	"github.com/mr55p-dev/app-utils/config"
+	"github.com/mr55p-dev/app-utils/embed"
 
 	"github.com/mr55p-dev/gonk"
 	"gopkg.in/yaml.v3"

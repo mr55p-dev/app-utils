@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"arr-setup/config"
+	"github.com/mr55p-dev/app-utils/config"
 
 	"github.com/mr55p-dev/gonk"
 )

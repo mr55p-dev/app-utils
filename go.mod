@@ -1,4 +1,4 @@
-module app-utils
+module github.com/mr55p-dev/app-utils
 
 go 1.22.0
 
