@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -20,8 +21,8 @@ import (
 	"github.com/mr55p-dev/app-utils/lib/nginx"
 )
 
-const AppsDir = "/Users/ellis/Git/arr/apps"
-const NginxDir = "/opt/homebrew/etc/nginx/servers/"
+var AppsDir = flag.String("apps", "/etc/gold/apps", "Path to apps directory")
+var NginxDir = flag.String("nginx", "/etc/nginx/sites-enabled", "Path to nginx dir")
 
 //go:embed html/*
 var embeddedFS embed.FS
