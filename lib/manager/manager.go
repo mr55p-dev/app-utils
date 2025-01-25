@@ -51,7 +51,7 @@ func (cli *FSClient) List() ([]string, error) {
 }
 
 func (cli *FSClient) Extensions() (config.Extensions, error) {
-	extFile, err := os.Open("../env-extensions.yml")
+	extFile, err := os.Open(filepath.Join(cli.dir, "env-extensions.yml"))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open ext file: %w", err)
 	}
