@@ -1,0 +1,22 @@
+{{ define "title"}}Create app{{end}}
+{{ define "content" }}
+<h3>Add a new app</h3>
+<form method="POST" action="/" class="box rows">
+<p>
+	<label for="appName">Application Name:</label>
+	<input type="text" id="appName" name="appName" required>
+</p>
+	
+<p>
+	<label for="host">Host IP:</label>
+	<input type="text" id="host" name="host" required>
+</p>
+	
+<p>
+	<label for="port">Port:</label>
+	<input type="text" id="port" name="port" required>
+</p>
+	
+	<button type="submit">Generate Configuration</button>
+</form>
+{{end}}

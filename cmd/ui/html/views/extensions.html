@@ -1,0 +1,25 @@
+{{ define "title"}}Extensions{{end}}
+{{ define "content" }}
+{{ range . }}
+<section class="box">
+	<table>
+		<caption>{{ .Name }}</caption>
+		<thead>
+			<tr>
+				<th>Key</th>
+				<th>Value</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{ range .Vals }}
+			<tr>
+				<td>{{ .Key }}</td>
+				<td>{{ .Val }}</td>
+			</tr>
+
+			{{ end }}
+		</tbody>
+	</table>
+</section>
+{{ end }}
+{{ end }}

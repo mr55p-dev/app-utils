@@ -1,28 +1,25 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"github.com/mr55p-dev/app-utils/config"
 	"github.com/mr55p-dev/app-utils/embed"
-
-	"github.com/mr55p-dev/gonk"
-	"gopkg.in/yaml.v3"
+	"github.com/mr55p-dev/app-utils/lib/generate"
 )
 
 type Config struct {
-	appConfig  config.AppConfig
-	templates  *template.Template
-	extensions map[string]map[string]any
 	baseDir    string
+	appConfig  config.AppConfig
+	extensions config.Extensions
+	templates  *template.Template
 }
 
 var includeNignx = flag.Bool("include-nginx", true, "Generates NGINX config")
@@ -43,45 +40,45 @@ func main() {
 func MustNewConfig(path string) *Config {
 	// Load the config object
 	cfg := new(Config)
-	loader, err := gonk.NewYamlLoader(filepath.Join(path, "app.yml"))
+	appConfig, err := config.NewAppConfig(path)
 	if err != nil {
-		log.Panicf("Error creating loader: %s", err)
+		panic(err)
 	}
-	if err := gonk.LoadConfig(&cfg.appConfig, loader); err != nil {
-		log.Panicf("Error loading config file: %s", err)
+
+	extFile, err := os.Open(*extensionsFile)
+	if err != nil {
+		panic(err)
 	}
+	defer extFile.Close()
+	extensions, err := config.NewExtensions(extFile)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg.appConfig = *appConfig
 	cfg.baseDir = path
 	cfg.templates = template.Must(template.New("nginx").Parse(embed.NginxTemplate))
-	extData, err := os.ReadFile(*extensionsFile)
-	if err != nil {
-		log.Panicf("Failed to read extensions file: %s", err)
-	}
-	if err := yaml.Unmarshal(extData, &cfg.extensions); err != nil {
-		log.Println("Failed to load extensions file", err)
-	}
+	cfg.extensions = extensions
 	return cfg
 }
 
 func (cfg *Config) doNginx() error {
-	buf := new(bytes.Buffer)
 	outPath := filepath.Join(cfg.baseDir, "nginx.conf")
 	nginxTemplate := cfg.templates.Lookup("nginx")
 	if nginxTemplate == nil {
 		return errors.New("Template is nil")
 	}
 
-	for _, block := range cfg.appConfig.Nginx {
-		if block.Protocol == "" {
-			block.Protocol = "http"
-		}
-		err := nginxTemplate.Execute(buf, block)
-		if err != nil {
-			return fmt.Errorf("Error executing nginx template: %s", err)
-		}
-		fmt.Fprint(buf, "\n\n")
+	nginxData, err := generate.Nginx(nginxTemplate, cfg.appConfig.Nginx)
+	if err != nil {
+		return fmt.Errorf("Error when executing nginx template: %w", err)
+	}
+	data, err := io.ReadAll(nginxData)
+	if err != nil {
+		return fmt.Errorf("Failed to read from nginx source: %w", err)
 	}
 
-	err := os.WriteFile(outPath, buf.Bytes(), 0o644)
+	err = os.WriteFile(outPath, data, 0o644)
 	if err != nil {
 		return fmt.Errorf("Failed to write nginx file: %w", err)
 	}
@@ -90,25 +87,15 @@ func (cfg *Config) doNginx() error {
 }
 
 func (cfg *Config) doEnvFile() error {
-	stackEnvData := new(bytes.Buffer)
-	for _, nginx := range cfg.appConfig.Nginx {
-		fmt.Fprintf(stackEnvData, "CFG_IPV4_%s=%s\n", sanitizeHost(nginx.ExternalHost), nginx.IPv4)
+	envData, err := generate.Environment(cfg.appConfig, cfg.extensions)
+	if err != nil {
+		return fmt.Errorf("Failed to load env data: %w", err)
 	}
-	for _, extensionName := range cfg.appConfig.Runtime.EnvExtensions {
-		ext, ok := cfg.extensions[extensionName]
-		if !ok {
-			return fmt.Errorf("Failed to load env extension %s: not found", extensionName)
-		}
-		for key, val := range ext {
-			fmt.Fprintf(stackEnvData, "%s=%v\n", key, val)
-		}
+	b, err := io.ReadAll(envData)
+	if err != nil {
+		return fmt.Errorf("Failed to read from environment reader: %w", err)
 	}
-	for key, val := range cfg.appConfig.Runtime.Env {
-		fmt.Fprintf(stackEnvData, "%s=%v\n", key, val)
-	}
-
-	b := stackEnvData.Bytes()
-	err := os.WriteFile(filepath.Join(cfg.baseDir, "stack.env"), b, 0644)
+	err = os.WriteFile(filepath.Join(cfg.baseDir, "stack.env"), b, 0644)
 	if err != nil {
 		return fmt.Errorf("Failed to write stack.env: %w", err)
 	}
@@ -136,11 +123,4 @@ func doMethod(predicate bool, fn func() error, name string) {
 	} else {
 		log.Println("Skipping task", name)
 	}
-}
-
-func sanitizeHost(hostname string) string {
-	s := hostname
-	s = strings.ReplaceAll(s, "-", "_")
-	s = strings.ReplaceAll(s, " ", "_")
-	return strings.ToUpper(s)
 }

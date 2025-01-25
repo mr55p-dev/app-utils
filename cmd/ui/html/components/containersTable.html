@@ -1,0 +1,17 @@
+<table>
+	<caption>Associated containers</caption>
+	<thead>
+		<tr>
+			<th>Name</th>
+			<th>Status</th>
+		</tr>
+	</thead>
+	<tbody>
+		{{ range . }}
+		<tr>
+			<td>{{ .Name }}</td>
+			<td>{{ if .Status }}{{ .Status }}{{ else }}Unknown{{ end }}</td>
+		</tr>
+		{{ end }}
+	</tbody>
+</table>

@@ -1,0 +1,9 @@
+{{ define "title"}}Stacks{{end}}
+{{ define "content" }}
+<h1>Applications</h1>
+{{ range . }}
+<article class="box">
+	<h4><a href="/app/{{ . }}">{{ . }}</a></h4>
+</article>
+{{ end }}
+{{ end }}
