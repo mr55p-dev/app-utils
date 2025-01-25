@@ -23,6 +23,8 @@ import (
 
 var AppsDir = flag.String("apps", "/etc/gold/apps", "Path to apps directory")
 var NginxDir = flag.String("nginx", "/etc/nginx/sites-enabled", "Path to nginx dir")
+var host = flag.String("host", "", "Host to listen on")
+var port = flag.Int("port", 8080, "Port to listen on")
 
 //go:embed html/*
 var embeddedFS embed.FS
@@ -57,6 +59,7 @@ func NewTemplates(layout string, components ...string) *Template {
 }
 
 func main() {
+	flag.Parse()
 	t := NewTemplates(
 		"layout.html",
 		"components/containersTable.html",
@@ -191,7 +194,7 @@ func main() {
 		return c.String(http.StatusOK, "Success!")
 	})
 
-	if err := e.Start(":8081"); err != nil {
+	if err := e.Start(fmt.Sprintf("%s:%d", *host, *port)); err != nil {
 		slog.Error("Failed to start server", "error", err)
 	}
 }
