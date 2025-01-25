@@ -71,17 +71,17 @@ func main() {
 	e := echo.New()
 	e.Renderer = t
 
-	apps, err := manager.New(AppsDir)
+	apps, err := manager.New(*AppsDir)
 	if err != nil {
 		panic(err)
 	}
 
-	compose, err := compose.New(AppsDir)
+	compose, err := compose.New(*AppsDir)
 	if err != nil {
 		panic(err)
 	}
 
-	nginx := nginx.New(NginxDir)
+	nginx := nginx.New(*NginxDir)
 
 	e.Logger.SetLevel(log.DEBUG)
 	e.Use(middleware.Recover(), middleware.Logger())
