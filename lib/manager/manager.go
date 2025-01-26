@@ -1,10 +1,12 @@
 package manager
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"strconv"
+	"strings"
 
 	"github.com/mr55p-dev/app-utils/config"
 	"github.com/mr55p-dev/app-utils/lib/portainer"
@@ -19,9 +21,10 @@ type App struct {
 	Path        string
 	ComposeFile []byte
 	EnvFile     []byte
-	PortainerId string
+	PortainerId int
 	AppYaml     *config.AppConfig
 	RawAppYaml  []byte
+	RawStackEnv []byte
 }
 
 func New(directory string) (*FSClient, error) {
@@ -79,7 +82,7 @@ func (cli *FSClient) Get(name string) (*App, error) {
 
 	portainerId, err := portainer.GetStackId(app.Path)
 	if err == nil {
-		app.PortainerId = strconv.Itoa(portainerId)
+		app.PortainerId = portainerId
 	}
 
 	rawConfig, err := os.ReadFile(filepath.Join(app.Path, "app.yml"))
@@ -87,12 +90,45 @@ func (cli *FSClient) Get(name string) (*App, error) {
 		app.RawAppYaml = rawConfig
 	}
 
-	conf, err := config.NewAppConfig(app.Path)
+	rawEnv, err := os.ReadFile(filepath.Join(app.Path, "stack.env"))
+	if err == nil {
+		app.EnvFile = rawEnv
+	}
+
+	conf, err := config.NewFromFile(app.Path)
 	if err == nil {
 		app.AppYaml = conf
 	}
 
 	return app, nil
+}
+
+func sanitizeHost(hostname string) string {
+	s := hostname
+	s = strings.ReplaceAll(s, "-", "_")
+	s = strings.ReplaceAll(s, " ", "_")
+	return strings.ToUpper(s)
+}
+
+func doEnvironment(appConfig *config.AppConfig, extensions config.Extensions) (io.Reader, error) {
+	stackEnvData := new(bytes.Buffer)
+	for _, nginx := range appConfig.Nginx {
+		fmt.Fprintf(stackEnvData, "CFG_IPV4_%s=%s\n", sanitizeHost(nginx.ExternalHost), nginx.IPv4)
+	}
+	for _, extensionName := range appConfig.Runtime.EnvExtensions {
+		ext, ok := extensions[extensionName]
+		if !ok {
+			return nil, fmt.Errorf("Env extension %s: not found", extensionName)
+		}
+		for key, val := range ext {
+			fmt.Fprintf(stackEnvData, "%s=%v\n", key, val)
+		}
+	}
+	for key, val := range appConfig.Runtime.Env {
+		fmt.Fprintf(stackEnvData, "%s=%v\n", key, val)
+	}
+
+	return stackEnvData, nil
 }
 
 func (cli *FSClient) Update(name string, content []byte) error {
@@ -101,6 +137,33 @@ func (cli *FSClient) Update(name string, content []byte) error {
 	if err != nil {
 		return fmt.Errorf("Failed to write to %s: %w", path, err)
 	}
+
+	appConfig, err := config.NewFromBytes(content)
+	if err != nil {
+		return fmt.Errorf("Failed to load new config: %w", err)
+	}
+
+	extensions, err := cli.Extensions()
+	if err != nil {
+		return fmt.Errorf("Failed to load extensions: %w", err)
+	}
+
+	stackEnv, err := doEnvironment(appConfig, extensions)
+	stackEnvBytes, err := io.ReadAll(stackEnv)
+	if err != nil {
+		return fmt.Errorf("Failed to read stackEnv: %w", err)
+	}
+
+	err = os.WriteFile(filepath.Join(cli.dir, name, "stack.env"), stackEnvBytes, 0o660)
+	if err != nil {
+		return fmt.Errorf("Failed to write updated env: %w", err)
+	}
+
+	err = os.WriteFile(filepath.Join(cli.dir, name, ".env"), stackEnvBytes, 0o660)
+	if err != nil {
+		return fmt.Errorf("Failed to write updated env: %w", err)
+	}
+
 	return nil
 }
 

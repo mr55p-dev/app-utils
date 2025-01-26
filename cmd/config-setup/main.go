@@ -40,7 +40,7 @@ func main() {
 func MustNewConfig(path string) *Config {
 	// Load the config object
 	cfg := new(Config)
-	appConfig, err := config.NewAppConfig(path)
+	appConfig, err := config.NewFromFile(path)
 	if err != nil {
 		panic(err)
 	}

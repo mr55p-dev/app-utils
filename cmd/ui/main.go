@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"os"
 
 	"embed"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/mr55p-dev/app-utils/lib/compose"
 	"github.com/mr55p-dev/app-utils/lib/manager"
 	"github.com/mr55p-dev/app-utils/lib/nginx"
+	"github.com/mr55p-dev/app-utils/lib/portainer"
 )
 
 var AppsDir = flag.String("apps", "/etc/gold/apps", "Path to apps directory")
@@ -59,6 +61,12 @@ func main() {
 		apps:    apps,
 		compose: compose,
 		nginx:   nginx.New(*NginxDir),
+		portainer: &portainer.Client{
+			Scheme:     os.Getenv("PORTAINER_SCHEME"),
+			Host:       os.Getenv("PORTAINER_HOST"),
+			ApiKey:     os.Getenv("PORTAINER_KEY"),
+			EndpointId: os.Getenv("PORTAINER_ENDPOINT_ID"),
+		},
 	}
 
 	e.GET("/", handler.root)

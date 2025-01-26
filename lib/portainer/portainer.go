@@ -52,8 +52,8 @@ func (cli *Client) newUrl(path string, query ...string) *url.URL {
 	u.Host = cli.Host
 	u.Path = path
 
-	v := new(url.Values)
-	for i := 0; i+1 < len(query)/2; i += 2 {
+	v := url.Values{}
+	for i := 0; i < len(query)/2; i += 2 {
 		v.Add(query[i], query[i+1])
 	}
 	u.RawQuery = v.Encode()

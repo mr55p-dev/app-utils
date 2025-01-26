@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 
@@ -8,12 +9,14 @@ import (
 	"github.com/mr55p-dev/app-utils/lib/compose"
 	"github.com/mr55p-dev/app-utils/lib/manager"
 	"github.com/mr55p-dev/app-utils/lib/nginx"
+	"github.com/mr55p-dev/app-utils/lib/portainer"
 )
 
 type Handler struct {
-	apps    *manager.FSClient
-	compose *compose.Client
-	nginx   *nginx.Client
+	apps      *manager.FSClient
+	compose   *compose.Client
+	nginx     *nginx.Client
+	portainer *portainer.Client
 }
 
 func (h *Handler) root(c echo.Context) error {
@@ -136,11 +139,23 @@ func (h *Handler) appConfig(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Failed to parse updated config")
 	}
 
-	c.Logger().Info("Restarting docker compose")
-	err = h.compose.Up(app.Path)
-	if err != nil {
-		c.Logger().Debug("Could not update stack", err)
-		return c.String(http.StatusInternalServerError, "Could not update stack")
+	if app.PortainerId != 0 {
+		c.Logger().Info("Updating portainer")
+		composeReader := bytes.NewReader(app.ComposeFile)
+		env, err := portainer.ReadEnvironment(bytes.NewReader(app.RawStackEnv))
+		_, err = h.portainer.UpdateStack(app.PortainerId, composeReader, env)
+		if err != nil {
+			c.Logger().Debug("Could not update stack", err)
+			return c.String(http.StatusInternalServerError, "Could not update stack")
+		}
+		c.Logger().Info("Stack updated")
+	} else {
+		c.Logger().Info("Restarting docker compose")
+		err = h.compose.Up(app.Path)
+		if err != nil {
+			c.Logger().Debug("Could not update stack", err)
+			return c.String(http.StatusInternalServerError, "Could not update stack")
+		}
 	}
 
 	if h.nginx.Status(id) == nginx.StatusEnabled {

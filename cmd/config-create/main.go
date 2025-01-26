@@ -23,7 +23,7 @@ type StackDataFile struct {
 }
 
 func iter(basePath string, cli *portainer.Client) {
-	configFile, err := config.NewAppConfig(basePath)
+	configFile, err := config.NewFromFile(basePath)
 	if err != nil {
 		panic(err)
 	}

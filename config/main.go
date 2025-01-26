@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/mr55p-dev/gonk"
@@ -41,14 +42,15 @@ func NewExtensions(src io.Reader) (Extensions, error) {
 	return ext, nil
 }
 
-func NewAppConfig(dir string) (*AppConfig, error) {
+func NewFromBytes(data []byte) (*AppConfig, error) {
 	// Load the config object
 	cfg := new(AppConfig)
-	loader, err := gonk.NewYamlLoader(filepath.Join(dir, "app.yml"))
+	mp := make(map[string]any)
+	err := yaml.Unmarshal(data, &mp)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating loader: %w", err)
 	}
-	if err := gonk.LoadConfig(&cfg, loader); err != nil {
+	if err := gonk.LoadConfig(&cfg, gonk.MapLoader(mp)); err != nil {
 		return nil, fmt.Errorf("Error loading config: %w", err)
 	}
 	for i := 0; i < len(cfg.Nginx); i++ {
@@ -58,4 +60,13 @@ func NewAppConfig(dir string) (*AppConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func NewFromFile(dir string) (*AppConfig, error) {
+	data, err := os.ReadFile(filepath.Join(dir, "app.yml"))
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read app.ym: %w", err)
+	}
+
+	return NewFromBytes(data)
 }
