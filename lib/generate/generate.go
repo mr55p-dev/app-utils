@@ -2,37 +2,12 @@ package generate
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"strings"
-	"text/template"
 
 	"github.com/mr55p-dev/app-utils/config"
 )
-
-func Nginx(nginxTemplate *template.Template, blocks []config.NginxBlock) (io.Reader, error) {
-	buf := new(bytes.Buffer)
-	if nginxTemplate == nil {
-		return nil, errors.New("Template is nil")
-	}
-
-	for _, block := range blocks {
-		err := nginxTemplate.Execute(buf, block)
-		if err != nil {
-			slog.Error(
-				"Failed to write nginx config",
-				"error", err,
-				"host", block.ExternalHost,
-			)
-			return nil, errors.New("Could not execute on template")
-		}
-		fmt.Fprint(buf, "\n\n")
-	}
-
-	return buf, nil
-}
 
 func Environment(appConfig config.AppConfig, extensions config.Extensions) (io.Reader, error) {
 	stackEnvData := new(bytes.Buffer)

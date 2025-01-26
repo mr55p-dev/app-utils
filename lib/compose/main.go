@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 )
 
 type Client struct {
@@ -37,32 +35,25 @@ type PsEntry struct {
 }
 
 func (c *Client) List() ([]ListEntry, error) {
-	outBytes := new(bytes.Buffer)
 	projects := make([]ListEntry, 0)
-	cmd := exec.Command("docker", "compose", "ls", "--format", "json")
-	cmd.Stdout = outBytes
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("Error running docker compose: %w", err)
+	outBytes, err := command("/", "ls")
+	if err != nil {
+		return nil, fmt.Errorf("Error running compose ls: %w", err)
 	}
-	if err := json.Unmarshal(outBytes.Bytes(), &projects); err != nil {
+	if err := json.Unmarshal(outBytes, &projects); err != nil {
 		return nil, fmt.Errorf("Error unmarshalling output: %w", err)
 	}
 	return projects, nil
 }
 
-func (c *Client) Ps(app string) ([]PsEntry, error) {
-	outBytes := new(bytes.Buffer)
-	errBytes := new(bytes.Buffer)
-	cmd := exec.Command("docker", "compose", "ps", "--format", "json")
-	cmd.Dir = filepath.Join(c.dir, app)
-	cmd.Stdout = outBytes
-	cmd.Stderr = errBytes
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("Error (%s): %s", err, errBytes.String())
+func (c *Client) Ps(path string) ([]PsEntry, error) {
+	output, err := command(path, "ps")
+	if err != nil {
+		return nil, fmt.Errorf("Error running docker compose ps: %w", err)
 	}
 
 	containers := make([]PsEntry, 0)
-	scanner := bufio.NewScanner(outBytes)
+	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		proc := PsEntry{}
 		if err := json.Unmarshal(scanner.Bytes(), &proc); err != nil {
@@ -71,4 +62,12 @@ func (c *Client) Ps(app string) ([]PsEntry, error) {
 		containers = append(containers, proc)
 	}
 	return containers, nil
+}
+
+func (c *Client) Up(path string) error {
+	_, err := command(path, "up", "--detach")
+	if err != nil {
+		return fmt.Errorf("Error running compose up: %w", err)
+	}
+	return nil
 }

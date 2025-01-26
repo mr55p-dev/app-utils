@@ -15,7 +15,7 @@ type FSClient struct {
 }
 
 type App struct {
-	ID        string
+	ID          string
 	Path        string
 	ComposeFile []byte
 	EnvFile     []byte
@@ -95,7 +95,12 @@ func (cli *FSClient) Get(name string) (*App, error) {
 	return app, nil
 }
 
-func (cli *FSClient) Update(info *App) error {
+func (cli *FSClient) Update(name string, content []byte) error {
+	path := filepath.Join(cli.dir, name, "app.yml")
+	err := os.WriteFile(path, content, 0o660)
+	if err != nil {
+		return fmt.Errorf("Failed to write to %s: %w", path, err)
+	}
 	return nil
 }
 

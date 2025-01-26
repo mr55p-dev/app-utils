@@ -95,14 +95,29 @@ func (c *Client) InstallUnit(r io.Reader, name string) error {
 	}
 
 	path := c.pathFromName(name)
-	if FileExists(path) {
-		return fmt.Errorf("Unit already exists")
-	}
-
 	err = os.WriteFile(path, data, 0o660)
 	if err != nil {
 		return fmt.Errorf("Failed writing: %w", err)
 	}
+	return nil
+}
+
+func (c *Client) CreateAndInstallUnits(id string, blocks []config.NginxBlock) error {
+	buf := new(bytes.Buffer)
+	fmt.Println("Will create units")
+	for _, block := range blocks {
+		err := c.CreateUnit(buf, block)
+		if err != nil {
+			return fmt.Errorf("Error creating unit: %w", err)
+		}
+		fmt.Fprint(buf, "\n\n")
+	}
+	fmt.Println("Created units, will install")
+	err := c.InstallUnit(buf, id)
+	if err != nil {
+		return fmt.Errorf("Error installing unit: %w", err)
+	}
+	fmt.Println("Done with installing")
 	return nil
 }
 

@@ -11,7 +11,7 @@
 
 <details open>
 	<summary>App YAML</summary>
-	<textarea>{{ .RawAppYaml }}</textarea>
+	{{ template "configForm.html" . }}
 </details>
 
 <details open>
@@ -77,4 +77,5 @@
 	</table>
 	{{ end }}
 </details>
+
 {{ end }}

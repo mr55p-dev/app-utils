@@ -1,0 +1,34 @@
+<form 
+	action="/app/{{.Name}}/config" 
+	method="post" 
+	hx-post="/app/{{.Name}}/config" 
+	hx-swap="outerHTML"
+>
+
+	<div class="editor-container">
+		<textarea id="yaml-input" name="app" oninput="updateLineNumbers()">{{.RawAppYaml}}</textarea>
+	</div>
+
+	<button type="button" id="validate-btn">Validate YAML</button>
+	<button type="submit">Update</button>
+
+	<script>
+	document.getElementById("validate-btn").addEventListener("click", () => {
+		const yamlContent = document.getElementById("yaml-input").value;
+		try {
+			jsyaml.load(yamlContent);
+			alert("YAML is valid!");
+		} catch (error) {
+			alert(`YAML Error: ${error.message}`);
+		}
+	});
+	</script>
+</form>
+
+{{ if .Flash }}
+<div class="box info">
+	<p>{{.Flash}}</p>
+</div>
+{{end}}
+
+
