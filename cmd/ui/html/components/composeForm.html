@@ -1,0 +1,34 @@
+<form 
+	action="/app/{{.Name}}/compose" 
+	method="post" 
+	hx-post="/app/{{.Name}}/compose" 
+	hx-swap="outerHTML"
+>
+
+	<div class="editor-container">
+		<textarea id="compose-input" name="compose" oninput="updateLineNumbers()">{{.RawComposeYaml}}</textarea>
+	</div>
+
+	<button type="button" id="compose-validate-btn">Validate YAML</button>
+	<button type="submit">Update</button>
+
+	<script>
+	document.getElementById("compose-validate-btn").addEventListener("click", () => {
+		const yamlContent = document.getElementById("compose-input").value;
+		try {
+			jsyaml.load(yamlContent);
+			alert("YAML is valid!");
+		} catch (error) {
+			alert(`YAML Error: ${error.message}`);
+		}
+	});
+	</script>
+</form>
+
+{{ if .Flash }}
+<div class="box info">
+	<p>{{.Flash}}</p>
+</div>
+{{end}}
+
+

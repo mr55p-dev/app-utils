@@ -67,7 +67,7 @@ func (cli *FSClient) Get(name string) (*App, error) {
 	app.ID = name
 	app.Path = filepath.Join(cli.dir, name)
 
-	composeFile, err := os.ReadFile(filepath.Join(app.Path, "compose.yml"))
+	composeFile, err := os.ReadFile(filepath.Join(app.Path, "docker-compose.yml"))
 	if err == nil {
 		app.ComposeFile = composeFile
 	}
@@ -97,6 +97,15 @@ func (cli *FSClient) Get(name string) (*App, error) {
 
 func (cli *FSClient) Update(name string, content []byte) error {
 	path := filepath.Join(cli.dir, name, "app.yml")
+	err := os.WriteFile(path, content, 0o660)
+	if err != nil {
+		return fmt.Errorf("Failed to write to %s: %w", path, err)
+	}
+	return nil
+}
+
+func (cli *FSClient) UpdateCompose(name string, content []byte) error {
+	path := filepath.Join(cli.dir, name, "docker-compose.yml")
 	err := os.WriteFile(path, content, 0o660)
 	if err != nil {
 		return fmt.Errorf("Failed to write to %s: %w", path, err)

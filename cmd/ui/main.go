@@ -31,6 +31,7 @@ func main() {
 		"layout.html",
 		"components/containersTable.html",
 		"components/configForm.html",
+		"components/composeForm.html",
 	)
 	t.LoadPage(
 		"views/list.html",
@@ -65,6 +66,7 @@ func main() {
 	e.GET("/extensions", handler.extensions)
 	e.GET("/app/:id", handler.app)
 	e.POST("/app/:id/config", handler.appConfig)
+	e.POST("/app/:id/compose", handler.composeConfig)
 	e.POST("/app/:id/nginx/enable", handler.nginxEnable)
 	e.POST("/app/:id/nginx/disable", handler.nginxDisable)
 

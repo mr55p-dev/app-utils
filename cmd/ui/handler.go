@@ -61,12 +61,13 @@ func (h *Handler) app(c echo.Context) error {
 	}
 
 	d := map[string]any{
-		"Name":        app.ID,
-		"Path":        app.Path,
-		"AppYaml":     app.AppYaml,
-		"RawAppYaml":  string(app.RawAppYaml),
-		"PortainerId": app.PortainerId,
-		"NginxStatus": h.nginx.Status(app.ID),
+		"Name":           app.ID,
+		"Path":           app.Path,
+		"AppYaml":        app.AppYaml,
+		"RawAppYaml":     string(app.RawAppYaml),
+		"RawComposeYaml": string(app.ComposeFile),
+		"PortainerId":    app.PortainerId,
+		"NginxStatus":    h.nginx.Status(app.ID),
 	}
 	containers, err := h.compose.Ps(app.Path)
 	if err == nil {
@@ -160,5 +161,52 @@ func (h *Handler) appConfig(c echo.Context) error {
 		"Name":       app,
 		"RawAppYaml": appYaml,
 		"Flash":      "Success!",
+	})
+}
+
+func (h *Handler) composeConfig(c echo.Context) error {
+	id := c.Param("id")
+	app, err := h.apps.Get(id)
+	if err != nil {
+		return c.String(http.StatusBadRequest, "Invalid app id")
+	}
+
+	composeYaml := c.FormValue("compose")
+	err = h.apps.UpdateCompose(id, []byte(composeYaml))
+	if err != nil {
+		c.Logger().Debug("Could not update yaml", err)
+		return c.String(http.StatusInternalServerError, "Could not update")
+	}
+	app, err = h.apps.Get(id)
+	if err != nil {
+		c.Logger().Debug("Failed to parse updated config", err)
+		return c.String(http.StatusBadRequest, "Failed to parse updated config")
+	}
+
+	c.Logger().Info("Restarting docker compose")
+	err = h.compose.Up(app.Path)
+	if err != nil {
+		c.Logger().Debug("Could not update stack", err)
+		return c.String(http.StatusInternalServerError, "Could not update stack")
+	}
+
+	if h.nginx.Status(id) == nginx.StatusEnabled {
+		c.Logger().Info("Recreating nginx units")
+		err = h.nginx.CreateAndInstallUnits(id, app.AppYaml.Nginx)
+		if err != nil {
+			c.Logger().Debug("Failed to create nginx units", err)
+			return c.String(http.StatusInternalServerError, "Failed to update nginx")
+		}
+		err = h.nginx.Reload()
+		if err != nil {
+			c.Logger().Debug("Failed to reload nginx", err)
+			return c.String(http.StatusInternalServerError, "Failed to reload nginx")
+		}
+	}
+
+	return c.Render(http.StatusOK, "composeForm.html", map[string]any{
+		"Name":           app,
+		"RawComposeYaml": composeYaml,
+		"Flash":          "Success!",
 	})
 }

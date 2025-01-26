@@ -15,6 +15,11 @@
 </details>
 
 <details open>
+	<summary>Compose YAML</summary>
+	{{ template "composeForm.html" . }}
+</details>
+
+<details open>
 	<summary>Virtual hosts</summary>
 	<p>Nginx Status: {{ .NginxStatus }}</p>
 	{{ if eq .NginxStatus "Disabled" }}
