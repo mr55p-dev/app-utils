@@ -65,7 +65,7 @@ func (c *Client) Ps(path string) ([]PsEntry, error) {
 }
 
 func (c *Client) Up(path string) error {
-	_, err := command(path, "up", "--detach")
+	_, err := command(path, "up", "-d")
 	if err != nil {
 		return fmt.Errorf("Error running compose up: %w", err)
 	}

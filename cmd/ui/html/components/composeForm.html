@@ -2,7 +2,7 @@
 	action="/app/{{.Name}}/compose" 
 	method="post" 
 	hx-post="/app/{{.Name}}/compose" 
-	hx-swap="outerHTML"
+	hx-swap="afterend"
 >
 
 	<div class="editor-container">
@@ -24,11 +24,3 @@
 	});
 	</script>
 </form>
-
-{{ if .Flash }}
-<div class="box info">
-	<p>{{.Flash}}</p>
-</div>
-{{end}}
-
-

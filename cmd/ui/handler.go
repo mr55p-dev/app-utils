@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -10,6 +8,7 @@ import (
 	"github.com/mr55p-dev/app-utils/lib/manager"
 	"github.com/mr55p-dev/app-utils/lib/nginx"
 	"github.com/mr55p-dev/app-utils/lib/portainer"
+	"gopkg.in/yaml.v3"
 )
 
 type Handler struct {
@@ -25,6 +24,7 @@ func (h *Handler) root(c echo.Context) error {
 		c.Logger().Error("Failed to get stacks", "error", err)
 		return c.String(http.StatusInternalServerError, "Failed to get stacks")
 	}
+	c.Logger().Debug("Rendering index with apps", "apps", stacks)
 	return c.Render(http.StatusOK, "list.html", stacks)
 }
 
@@ -56,14 +56,9 @@ func (h *Handler) extensions(c echo.Context) error {
 	return c.Render(http.StatusOK, "extensions.html", vals)
 }
 
-func (h *Handler) app(c echo.Context) error {
-	id := c.Param("id")
-	app, err := h.apps.Get(id)
-	if err != nil {
-		return c.String(http.StatusBadRequest, "Failed to load stack")
-	}
-
-	d := map[string]any{
+func (h *Handler) viewApp(c echo.Context) error {
+	app := c.Get("app").(*manager.App)
+	return c.Render(http.StatusOK, "app.html", map[string]any{
 		"Name":           app.ID,
 		"Path":           app.Path,
 		"AppYaml":        app.AppYaml,
@@ -71,157 +66,59 @@ func (h *Handler) app(c echo.Context) error {
 		"RawComposeYaml": string(app.ComposeFile),
 		"PortainerId":    app.PortainerId,
 		"NginxStatus":    h.nginx.Status(app.ID),
-	}
-	containers, err := h.compose.Ps(app.Path)
-	if err == nil {
-		d["Containers"] = containers
-	}
-	return c.Render(http.StatusOK, "app.html", d)
-}
-
-func (h *Handler) nginxEnable(c echo.Context) error {
-	id := c.Param("id")
-	app, err := h.apps.Get(id)
-	if err != nil {
-		return c.String(http.StatusBadRequest, "Invalid app id")
-	}
-
-	err = h.nginx.CreateAndInstallUnits(id, app.AppYaml.Nginx)
-	if err != nil {
-		c.Logger().Debug("Failed to crate unit", err)
-		return c.String(http.StatusInternalServerError, "Failed to create unit")
-	}
-
-	err = h.nginx.Reload()
-	if err != nil {
-		c.Logger().Debug("Error reloading nginx", err)
-		return c.String(http.StatusInternalServerError, "Failed to reload nginx")
-	}
-	return c.String(http.StatusOK, "Success!")
-}
-
-func (h *Handler) nginxDisable(c echo.Context) error {
-	id := c.Param("id")
-	app, err := h.apps.Get(id)
-	if err != nil {
-		return c.String(http.StatusBadRequest, "Invalid app id")
-	}
-	err = h.nginx.RemoveUnit(app.ID)
-	if err != nil {
-		c.Logger().Debug("Error removing unit", err)
-		return c.String(http.StatusInternalServerError, "Failed to remove unit")
-	}
-	err = h.nginx.Reload()
-	if err != nil {
-		c.Logger().Debug("Error reloading nginx", err)
-		return c.String(http.StatusInternalServerError, "Failed to reload nginx")
-	}
-	return c.String(http.StatusOK, "Success!")
-}
-
-func (h *Handler) appConfig(c echo.Context) error {
-	id := c.Param("id")
-	app, err := h.apps.Get(id)
-	if err != nil {
-		return c.String(http.StatusBadRequest, "Invalid app id")
-	}
-
-	appYaml := c.FormValue("app")
-	fmt.Printf("string(appYaml): %v\n", string(appYaml))
-	err = h.apps.Update(id, []byte(appYaml))
-	if err != nil {
-		c.Logger().Debug("Could not update yaml", err)
-		return c.String(http.StatusInternalServerError, "Could not update")
-	}
-	app, err = h.apps.Get(id)
-	if err != nil {
-		c.Logger().Debug("Failed to parse updated config", err)
-		return c.String(http.StatusBadRequest, "Failed to parse updated config")
-	}
-
-	if app.PortainerId != 0 {
-		c.Logger().Info("Updating portainer")
-		composeReader := bytes.NewReader(app.ComposeFile)
-		env, err := portainer.ReadEnvironment(bytes.NewReader(app.RawStackEnv))
-		_, err = h.portainer.UpdateStack(app.PortainerId, composeReader, env)
-		if err != nil {
-			c.Logger().Debug("Could not update stack", err)
-			return c.String(http.StatusInternalServerError, "Could not update stack")
-		}
-		c.Logger().Info("Stack updated")
-	} else {
-		c.Logger().Info("Restarting docker compose")
-		err = h.compose.Up(app.Path)
-		if err != nil {
-			c.Logger().Debug("Could not update stack", err)
-			return c.String(http.StatusInternalServerError, "Could not update stack")
-		}
-	}
-
-	if h.nginx.Status(id) == nginx.StatusEnabled {
-		c.Logger().Info("Recreating nginx units")
-		err = h.nginx.CreateAndInstallUnits(id, app.AppYaml.Nginx)
-		if err != nil {
-			c.Logger().Debug("Failed to create nginx units", err)
-			return c.String(http.StatusInternalServerError, "Failed to update nginx")
-		}
-		err = h.nginx.Reload()
-		if err != nil {
-			c.Logger().Debug("Failed to reload nginx", err)
-			return c.String(http.StatusInternalServerError, "Failed to reload nginx")
-		}
-	}
-
-	return c.Render(http.StatusOK, "configForm.html", map[string]any{
-		"Name":       app,
-		"RawAppYaml": appYaml,
-		"Flash":      "Success!",
 	})
 }
 
-func (h *Handler) composeConfig(c echo.Context) error {
-	id := c.Param("id")
-	app, err := h.apps.Get(id)
+func (h *Handler) configApp(c echo.Context) error {
+	app := c.Get("app").(*manager.App)
+	appYaml := []byte(c.FormValue("app"))
+
+	iface := make(map[string]any)
+	err := yaml.Unmarshal(appYaml, &iface)
 	if err != nil {
-		return c.String(http.StatusBadRequest, "Invalid app id")
+		return c.String(http.StatusOK, "Failed to update resource: invalid yaml")
 	}
 
-	composeYaml := c.FormValue("compose")
-	err = h.apps.UpdateCompose(id, []byte(composeYaml))
+	err = h.apps.Update(app.ID, appYaml)
 	if err != nil {
 		c.Logger().Debug("Could not update yaml", err)
-		return c.String(http.StatusInternalServerError, "Could not update")
+		return c.String(http.StatusInternalServerError, "Could not update app")
 	}
-	app, err = h.apps.Get(id)
+	c.Logger().Info("Updated yaml content", "app")
+	return c.Render(http.StatusOK, "alert.html", map[string]string{
+		"Message": "Succesfully updated app.yml",
+	})
+}
+
+func (h *Handler) configCompose(c echo.Context) error {
+	app := c.Get("app").(*manager.App)
+	composeYaml := []byte(c.FormValue("compose"))
+
+	iface := make(map[string]any)
+	err := yaml.Unmarshal(composeYaml, &iface)
 	if err != nil {
-		c.Logger().Debug("Failed to parse updated config", err)
-		return c.String(http.StatusBadRequest, "Failed to parse updated config")
+		return c.String(http.StatusOK, "Failed to update resource: invalid yaml")
 	}
 
+	err = h.apps.UpdateCompose(app.ID, composeYaml)
+	if err != nil {
+		c.Logger().Debug("Could not update yaml", err)
+		return c.String(http.StatusInternalServerError, "Could not update app")
+	}
+	c.Logger().Info("Updated yaml content", "app", app.ID)
+	return c.Render(http.StatusOK, "alert.html", map[string]string{
+		"Message": "Succesfully updated docker-compose.yml",
+	})
+}
+
+func (h *Handler) composeRestart(c echo.Context) error {
+	app := c.Get("app").(*manager.App)
 	c.Logger().Info("Restarting docker compose")
-	err = h.compose.Up(app.Path)
+	err := h.compose.Up(app.Path)
 	if err != nil {
 		c.Logger().Debug("Could not update stack", err)
-		return c.String(http.StatusInternalServerError, "Could not update stack")
+		return c.String(http.StatusOK, "Could not update stack")
 	}
 
-	if h.nginx.Status(id) == nginx.StatusEnabled {
-		c.Logger().Info("Recreating nginx units")
-		err = h.nginx.CreateAndInstallUnits(id, app.AppYaml.Nginx)
-		if err != nil {
-			c.Logger().Debug("Failed to create nginx units", err)
-			return c.String(http.StatusInternalServerError, "Failed to update nginx")
-		}
-		err = h.nginx.Reload()
-		if err != nil {
-			c.Logger().Debug("Failed to reload nginx", err)
-			return c.String(http.StatusInternalServerError, "Failed to reload nginx")
-		}
-	}
-
-	return c.Render(http.StatusOK, "composeForm.html", map[string]any{
-		"Name":           app,
-		"RawComposeYaml": composeYaml,
-		"Flash":          "Success!",
-	})
+	return c.String(http.StatusOK, "Succesfully restarted the containers")
 }

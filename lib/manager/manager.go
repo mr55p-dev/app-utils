@@ -46,7 +46,6 @@ func (cli *FSClient) List() ([]string, error) {
 	dirList := make([]string, 0)
 	for _, dir := range dirs {
 		if dir.IsDir() {
-			// path := filepath.Join(cli.dir, dir.Name())
 			dirList = append(dirList, dir.Name())
 		}
 	}

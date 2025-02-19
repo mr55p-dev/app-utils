@@ -9,6 +9,12 @@
 <p>Not managed by portainer</p>
 {{ end }}
 
+<section class="tool-bar">
+	<button hx-post="/server/nginx/reload" type="button">Restart nginx</button>
+	<button hx-post="/app/{{.Name}}/portainer" type="button">Publish to portainer</button>
+	<button hx-post="/app/{{.Name}}/compose/reload" type="button">Restart container stack</button>
+</section>
+
 <details open>
 	<summary>App YAML</summary>
 	{{ template "configForm.html" . }}
@@ -23,9 +29,9 @@
 	<summary>Virtual hosts</summary>
 	<p>Nginx Status: {{ .NginxStatus }}</p>
 	{{ if eq .NginxStatus "Disabled" }}
-	<button hx-post="/app/{{.Name}}/nginx/enable">Enable Nginx</button>
+	<button hx-post="/app/{{.Name}}/nginx/enable">Install nginx unit</button>
 	{{ else }}
-	<button hx-post="/app/{{.Name}}/nginx/disable">Disable Nginx</button>
+	<button hx-post="/app/{{.Name}}/nginx/disable">Uninstall nginx unit</button>
 	{{ end }}
 	<br />
 	<table>
@@ -52,35 +58,6 @@
 			{{ end }}
 		</tbody>
 	</table>
-</details>
-
-<details open>
-	<summary>Containers</summary>
-	{{ if .Containers }}
-	<table>
-		<caption>Containers</caption>
-		<thead>
-			<tr>
-				<th>Name</th>
-				<th>Status</th>
-				<th>Controls</th>
-			</tr>
-		</thead>
-		<tbody>
-			{{ range .Containers }}
-			<tr>
-				<td>{{ .Name }}</td>
-				<td>{{ if .Status }}{{ .Status }}{{ else }}Unknown{{ end }}</td>
-				<td>
-					<button hx-put="/api/v1/{{ .Name }}/docker/start">Start</button>
-					<button hx-put="/api/v1/{{ .Name }}/docker/restart">Restart</button>
-					<button hx-put="/api/v1/{{ .Name }}/docker/stop">Stop</button>
-				</td>
-			</tr>
-			{{ end }}
-		</tbody>
-	</table>
-	{{ end }}
 </details>
 
 {{ end }}

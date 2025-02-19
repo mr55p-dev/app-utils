@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"text/template"
 
 	_ "embed"
@@ -15,29 +16,62 @@ import (
 	"github.com/mr55p-dev/app-utils/config"
 )
 
+type Status string
+type ConfigFn func(*Client)
 type Client struct {
-	dir string
+	dir            string
+	dhParamsPath   string
+	sslCertPath    string
+	sslCertKeyPath string
+	enabledSSL     bool
 }
 
-type Status string
+//go:embed nginx.conf.tmpl
+var tmpl string
 
 var (
 	StatusUnknown  Status = "Unknown"
 	StatusEnabled  Status = "Enabled"
 	StatusDisabled Status = "Disabled"
+
+	t = template.Must(template.New("nginx.conf.tmpl").Parse(tmpl))
 )
 
-//go:embed nginx.conf.tmpl
-var tmpl string
-
-var t = template.Must(template.New("nginx.conf.tmpl").Parse(tmpl))
-
-func New(base string) *Client {
-	return &Client{dir: base}
+func copyStructToMap(data any) map[string]any {
+	to := make(map[string]any)
+	dataType := reflect.TypeOf(data).Elem()
+	dataVal := reflect.ValueOf(data).Elem()
+	fields := reflect.VisibleFields(dataType)
+	for _, field := range fields {
+		to[field.Name] = dataVal.FieldByName(field.Name).Interface()
+	}
+	return to
 }
 
-func (c *Client) List() {
+func WithDir(dir string) ConfigFn {
+	return func(c *Client) { c.dir = dir }
+}
 
+func WithSSL(certPath, certKeyPath string) ConfigFn {
+	return func(c *Client) {
+		c.sslCertPath = certPath
+		c.sslCertKeyPath = certKeyPath
+		c.enabledSSL = true
+	}
+}
+
+func WithDHParams(paramsPath string) ConfigFn {
+	return func(c *Client) { c.dhParamsPath = paramsPath }
+}
+
+func New(config ...ConfigFn) *Client {
+	cli := &Client{
+		dir: "/etc/nginx/sites-enabled",
+	}
+	for _, fn := range config {
+		fn(cli)
+	}
+	return cli
 }
 
 func (c *Client) pathFromName(name string) string {
@@ -50,7 +84,7 @@ func FileExists(path string) bool {
 		return false
 	}
 	return !stat.IsDir()
-	
+
 }
 
 func (c *Client) Status(name string) Status {
@@ -68,12 +102,21 @@ func (c *Client) Status(name string) Status {
 	return StatusEnabled
 }
 
-func (*Client) CreateUnit(w io.Writer, conf config.NginxBlock) error {
-	err := t.Execute(w, conf)
+func (c *Client) CreateUnit(w io.Writer, conf config.NginxBlock) error {
+	templateData := copyStructToMap(&conf)
+	if c.enabledSSL {
+		templateData["SSLEnabled"] = true
+		templateData["SSLCertPath"] = c.sslCertPath
+		templateData["SSLCertKeyPath"] = c.sslCertKeyPath
+		if c.dhParamsPath != "" {
+			templateData["SSLDHParamPath"] = c.dhParamsPath
+		}
+	}
+
+	err := t.Execute(w, templateData)
 	if err != nil {
 		return fmt.Errorf("Failed to exec template: %w", err)
 	}
-
 	return nil
 }
 
